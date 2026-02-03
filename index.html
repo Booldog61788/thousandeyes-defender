@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThousandEyes Defender - Network Warriors Unite!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+
+        #gameContainer {
+            text-align: center;
+        }
+
+        #gameCanvas {
+            border: 3px solid #00d9ff;
+            background: #000814;
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.5);
+            max-width: 100%;
+        }
+
+        #gameInfo {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        #score, #lives, #level {
+            padding: 10px 20px;
+            background: rgba(0, 217, 255, 0.2);
+            border-radius: 5px;
+            border: 2px solid #00d9ff;
+        }
+
+        #gameOver, #startScreen {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 20, 40, 0.95);
+            padding: 40px;
+            border-radius: 15px;
+            border: 3px solid #00d9ff;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        h1 {
+            color: #00d9ff;
+            margin-bottom: 20px;
+            font-size: 36px;
+            text-shadow: 0 0 10px rgba(0, 217, 255, 0.8);
+        }
+
+        button {
+            background: #00d9ff;
+            color: #000814;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #00fff7;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.8);
+        }
+
+        .instructions {
+            margin: 20px 0;
+            line-height: 1.8;
+            color: #a0d2eb;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="startScreen">
+            <h1>🛡️ ThousandEyes Defender 🛡️</h1>
+            <p class="instructions">
+                <strong>Mission:</strong> Protect the network from chaos!<br><br>
+                <strong>Controls:</strong><br>
+                ← → Arrow Keys to Move<br>
+                SPACEBAR to Fire<br><br>
+                <strong>Enemies:</strong><br>
+                CDN Failures • ISP Outages • Cloud Mayhem<br>
+                Network Gremlins • DNS Disasters<br><br>
+                ThousandEyes has your back! 💪
+            </p>
+            <button onclick="startGame()">Launch Defense System</button>
+        </div>
+
+        <div id="gameOver">
+            <h1>Mission Complete!</h1>
+            <p id="finalScore" style="font-size: 24px; margin: 20px 0;"></p>
+            <p style="color: #a0d2eb;">You defended the network like a pro! 🎯</p>
+            <button onclick="restartGame()">Defend Again</button>
+        </div>
+
+        <div id="gameInfo">
+            <div id="score">Score: 0</div>
+            <div id="level">Level: 1</div>
+            <div id="lives">Lives: ❤️❤️❤️</div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameActive = false;
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let keys = {};
+        let player, bullets, enemies, particles;
+        let lastEnemySpawn = 0;
+        let enemySpawnRate = 2000; // milliseconds
+        let gameStartTime = 0;
+
+        // Enemy types with their properties
+        const enemyTypes = [
+            { name: 'CDN', color: '#ff6b6b', points: 100, speed: 1.5 },
+            { name: 'ISP', color: '#4ecdc4', points: 150, speed: 2 },
+            { name: 'Azure', color: '#0078d4', points: 200, speed: 2.5 },
+            { name: 'AWS', color: '#ff9900', points: 200, speed: 2.5 },
+            { name: 'Outage', color: '#e74c3c', points: 250, speed: 3 },
+            { name: 'DNS', color: '#9b59b6', points: 180, speed: 2.2 },
+            { name: 'Latency', color: '#f39c12', points: 120, speed: 1.8 },
+            { name: 'Packet Loss', color: '#e67e22', points: 170, speed: 2.3 }
+        ];
+
+        // Player class
+        class Player {
+            constructor() {
+                this.width = 50;
+                this.height = 50;
+                this.x = canvas.width / 2 - this.width / 2;
+                this.y = canvas.height - this.height - 20;
+                this.speed = 5;
+            }
+
+            draw() {
+                // Draw ThousandEyes symbol (eye with lines)
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                
+                // Eye outer circle
+                ctx.strokeStyle = '#00d9ff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Eye inner circle (pupil)
+                ctx.fillStyle = '#00d9ff';
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Radiating lines (thousand eyes watching)
+                for (let i = 0; i < 8; i++) {
+                    const angle = (Math.PI * 2 / 8) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(angle) * 22, Math.sin(angle) * 22);
+                    ctx.lineTo(Math.cos(angle) * 30, Math.sin(angle) * 30);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+
+            move() {
+                if (keys['ArrowLeft'] && this.x > 0) {
+                    this.x -= this.speed;
+                }
+                if (keys['ArrowRight'] && this.x < canvas.width - this.width) {
+                    this.x += this.speed;
+                }
+            }
+
+            shoot() {
+                bullets.push(new Bullet(this.x + this.width / 2, this.y));
+            }
+        }
+
+        // Bullet class
+        class Bullet {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 4;
+                this.height = 15;
+                this.speed = 7;
+                this.color = '#00fff7';
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+                ctx.shadowBlur = 0;
+            }
+
+            update() {
+                this.y -= this.speed;
+            }
+
+            isOffScreen() {
+                return this.y < -this.height;
+            }
+        }
+
+        // Enemy class
+        class Enemy {
+            constructor(type) {
+                this.type = type;
+                this.width = 60;
+                this.height = 40;
+                this.x = Math.random() * (canvas.width - this.width);
+                this.y = -this.height;
+                this.speed = type.speed;
+                this.wiggle = Math.random() * Math.PI * 2;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                
+                // Enemy box
+                ctx.fillStyle = this.type.color;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(-this.width / 2, -this.height / 2, this.width, this.height, 5);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Enemy label
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.type.name, 0, 0);
+                
+                ctx.restore();
+            }
+
+            update() {
+                this.y += this.speed;
+                // Add wiggle movement
+                this.wiggle += 0.05;
+                this.x += Math.sin(this.wiggle) * 1;
+                
+                // Keep enemies on screen
+                if (this.x < 0) this.x = 0;
+                if (this.x > canvas.width - this.width) this.x = canvas.width - this.width;
+            }
+
+            isOffScreen() {
+                return this.y > canvas.height;
+            }
+        }
+
+        // Particle class for explosions
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = (Math.random() - 0.5) * 6;
+                this.size = Math.random() * 3 + 2;
+                this.life = 1;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.02;
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        // Create explosion effect
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 20; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // Check collision between two objects
+        function checkCollision(obj1, obj2) {
+            return obj1.x < obj2.x + obj2.width &&
+                   obj1.x + obj1.width > obj2.x &&
+                   obj1.y < obj2.y + obj2.height &&
+                   obj1.y + obj1.height > obj2.y;
+        }
+
+        // Update game difficulty based on time and level
+        function updateDifficulty() {
+            const timeElapsed = Date.now() - gameStartTime;
+            
+            // First 30 seconds: very easy
+            if (timeElapsed < 30000) {
+                enemySpawnRate = 2500;
+                level = 1;
+            }
+            // 30-60 seconds: gradually increase
+            else if (timeElapsed < 60000) {
+                enemySpawnRate = 2000;
+                level = 2;
+            }
+            // After 60 seconds: progressive difficulty
+            else {
+                level = Math.floor(timeElapsed / 30000) + 1;
+                enemySpawnRate = Math.max(800, 2000 - (level * 150));
+            }
+        }
+
+        // Spawn enemy
+        function spawnEnemy() {
+            const now = Date.now();
+            if (now - lastEnemySpawn > enemySpawnRate) {
+                // Choose enemy type based on level
+                let availableTypes = enemyTypes.slice(0, Math.min(2 + level, enemyTypes.length));
+                const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                enemies.push(new Enemy(randomType));
+                lastEnemySpawn = now;
+            }
+        }
+
+        // Update UI
+        function updateUI() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+            document.getElementById('level').textContent = `Level: ${level}`;
+            document.getElementById('lives').textContent = `Lives: ${'❤️'.repeat(lives)}`;
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // Clear canvas
+            ctx.fillStyle = '#000814';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update difficulty
+            updateDifficulty();
+
+            // Spawn enemies
+            spawnEnemy();
+
+            // Update and draw player
+            player.move();
+            player.draw();
+
+            // Update and draw bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].update();
+                bullets[i].draw();
+                
+                if (bullets[i].isOffScreen()) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Update and draw enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                enemies[i].update();
+                enemies[i].draw();
+                
+                // Check if enemy reached bottom (player loses life)
+                if (enemies[i].isOffScreen()) {
+                    enemies.splice(i, 1);
+                    lives--;
+                    if (lives <= 0) {
+                        gameOver();
+                    }
+                    continue;
+                }
+
+                // Check collision with bullets
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    if (checkCollision(bullets[j], enemies[i])) {
+                        createExplosion(enemies[i].x + enemies[i].width / 2, 
+                                      enemies[i].y + enemies[i].height / 2, 
+                                      enemies[i].type.color);
+                        score += enemies[i].type.points;
+                        bullets.splice(j, 1);
+                        enemies.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+
+            // Update and draw particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                
+                if (particles[i].isDead()) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Update UI
+            updateUI();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize game
+        function initGame() {
+            player = new Player();
+            bullets = [];
+            enemies = [];
+            particles = [];
+            score = 0;
+            lives = 3;
+            level = 1;
+            lastEnemySpawn = 0;
+            gameStartTime = Date.now();
+            updateUI();
+        }
+
+        // Start game
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            initGame();
+            gameActive = true;
+            gameLoop();
+        }
+
+        // Game over
+        function gameOver() {
+            gameActive = false;
+            document.getElementById('finalScore').textContent = 
+                `Final Score: ${score} | Level Reached: ${level}`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        // Restart game
+        function restartGame() {
+            document.getElementById('gameOver').style.display = 'none';
+            startGame();
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            if (e.key === ' ' && gameActive) {
+                e.preventDefault();
+                player.shoot();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Show start screen on load
+        window.addEventListener('load', () => {
+            document.getElementById('startScreen').style.display = 'block';
+        });
+
+        // Add roundRect polyfill for older browsers
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.moveTo(x + radius, y);
+                this.lineTo(x + width - radius, y);
+                this.quadraticCurveTo(x + width, y, x + width, y + radius);
+                this.lineTo(x + width, y + height - radius);
+                this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                this.lineTo(x + radius, y + height);
+                this.quadraticCurveTo(x, y + height, x, y + height - radius);
+                this.lineTo(x, y + radius);
+                this.quadraticCurveTo(x, y, x + radius, y);
+                this.closePath();
+            };
+        }
+    </script>
+</body>
+</html>
